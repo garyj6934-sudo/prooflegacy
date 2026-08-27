@@ -85,6 +85,26 @@ describe("ProofLegacyVault", async function () {
     assert.equal(await vault.read.warningPeriod(), false);
   });
 
+  it("does not allow a non-owner to ping", async function () {
+    const [owner, beneficiary, attacker] =
+      await viem.getWalletClients();
+
+    const inactivityPeriod = 90n * 24n * 60n * 60n;
+
+    const vault = await viem.deployContract("ProofLegacyVault", [
+      beneficiary.account.address,
+      inactivityPeriod,
+    ]);
+
+    await assert.rejects(
+      vault.write.ping({
+        account: attacker.account,
+      })
+    );
+
+    assert.equal(await vault.read.lastProofOfLife(), await vault.read.lastProofOfLife());
+  });
+
   it("does not allow the beneficiary to claim before the warning period ends", async function () {
     const [owner, beneficiary] = await viem.getWalletClients();
     const inactivityPeriod = 90n * 24n * 60n * 60n;
