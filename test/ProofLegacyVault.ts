@@ -96,13 +96,17 @@ describe("ProofLegacyVault", async function () {
       inactivityPeriod,
     ]);
 
+    const before = await vault.read.lastProofOfLife();
+
     await assert.rejects(
       vault.write.ping({
         account: attacker.account,
       })
     );
 
-    assert.equal(await vault.read.lastProofOfLife(), await vault.read.lastProofOfLife());
+    const after = await vault.read.lastProofOfLife();
+
+    assert.equal(after, before);
   });
 
   it("does not allow the beneficiary to claim before the warning period ends", async function () {
