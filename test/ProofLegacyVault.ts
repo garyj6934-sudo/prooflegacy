@@ -27,6 +27,30 @@ describe("ProofLegacyVault", async function () {
     );
   });
 
+  it("rejects a zero address beneficiary", async function () {
+    const [owner] = await viem.getWalletClients();
+    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const inactivityPeriod = 90n * 24n * 60n * 60n;
+
+    await assert.rejects(
+      viem.deployContract("ProofLegacyVault", [
+        zeroAddress,
+        inactivityPeriod,
+      ])
+    );
+  });
+
+  it("rejects a zero inactivity period", async function () {
+    const [owner, beneficiary] = await viem.getWalletClients();
+
+    await assert.rejects(
+      viem.deployContract("ProofLegacyVault", [
+        beneficiary.account.address,
+        0n,
+      ])
+    );
+  });
+
   it("does not allow the warning period to start while the owner is active", async function () {
     const [owner, beneficiary] = await viem.getWalletClients();
     const inactivityPeriod = 90n * 24n * 60n * 60n;
@@ -108,6 +132,7 @@ describe("ProofLegacyVault", async function () {
     });
 
     assert.equal(await vault.read.warningPeriod(), false);
+    assert.equal(await vault.read.warningStartedAt(), 0n);
   });
 
   it("does not allow a non-owner to ping", async function () {
@@ -261,6 +286,31 @@ describe("ProofLegacyVault", async function () {
     assert.equal(
       (await vault.read.beneficiary()).toLowerCase(),
       newBeneficiary.account.address.toLowerCase()
+    );
+  });
+
+  it("does not allow the owner to update the beneficiary to zero address", async function () {
+    const [owner, beneficiary] = await viem.getWalletClients();
+    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const inactivityPeriod = 90n * 24n * 60n * 60n;
+
+    const vault = await viem.deployContract("ProofLegacyVault", [
+      beneficiary.account.address,
+      inactivityPeriod,
+    ]);
+
+    await assert.rejects(
+      vault.write.updateBeneficiary(
+        [zeroAddress],
+        {
+          account: owner.account,
+        }
+      )
+    );
+
+    assert.equal(
+      (await vault.read.beneficiary()).toLowerCase(),
+      beneficiary.account.address.toLowerCase()
     );
   });
 
