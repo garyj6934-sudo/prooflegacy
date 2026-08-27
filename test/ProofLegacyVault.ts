@@ -190,4 +190,28 @@ describe("ProofLegacyVault", async function () {
       })
     );
   });
+
+  it("allows the owner to update the beneficiary", async function () {
+    const [owner, beneficiary, newBeneficiary] =
+      await viem.getWalletClients();
+
+    const inactivityPeriod = 90n * 24n * 60n * 60n;
+
+    const vault = await viem.deployContract("ProofLegacyVault", [
+      beneficiary.account.address,
+      inactivityPeriod,
+    ]);
+
+    await vault.write.updateBeneficiary(
+      [newBeneficiary.account.address],
+      {
+        account: owner.account,
+      }
+    );
+
+    assert.equal(
+      (await vault.read.beneficiary()).toLowerCase(),
+      newBeneficiary.account.address.toLowerCase()
+    );
+  });
 });
