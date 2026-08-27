@@ -17,8 +17,9 @@ contract ProofLegacyVault {
     uint256 public inactivityPeriod;
     uint256 public lastProofOfLife;
 
-    bool public warningPeriod;
-    uint256 public warningStartedAt;
+   bool public warningPeriod;
+uint256 public warningStartedAt;
+bool public claimed;
 
     uint256 public constant WARNING_PERIOD = 14 days;
 
@@ -64,8 +65,9 @@ contract ProofLegacyVault {
         warningStartedAt = block.timestamp;
     }
 
-    function claim() external {
-        require(warningPeriod, "Warning not started");
+function claim() external {
+    require(!claimed, "Already claimed");
+    require(warningPeriod, "Warning not started");
         require(
             block.timestamp >= warningStartedAt + WARNING_PERIOD,
             "Warning period active"
@@ -75,7 +77,10 @@ contract ProofLegacyVault {
             "Not beneficiary"
         );
 
-        (bool success, ) = payable(beneficiary).call{
+  claimed = true;
+warningPeriod = false;
+
+      (bool success, ) = payable(beneficiary).call{
     value: address(this).balance
 }("");
 require(success, "Transfer failed");
