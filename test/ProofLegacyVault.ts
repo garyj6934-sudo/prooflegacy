@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { network } from "hardhat";
 
 describe("ProofLegacyVault", async function () {
-  const { viem, provider } = await network.connect();
+  const connection = await network.connect();
+  const { viem } = connection;
+  const provider = connection.provider;
 
   it("sets the owner and beneficiary correctly", async function () {
     const [owner, beneficiary] = await viem.getWalletClients();
@@ -123,5 +125,58 @@ describe("ProofLegacyVault", async function () {
         account: beneficiary.account,
       })
     );
+  });
+
+  it("allows the beneficiary to claim after the warning period ends", async function () {
+    const [owner, beneficiary] = await viem.getWalletClients();
+
+    const inactivityPeriod = 90n * 24n * 60n * 60n;
+    const warningDuration = 14n * 24n * 60n * 60n;
+
+    const vault = await viem.deployContract("ProofLegacyVault", [
+      beneficiary.account.address,
+      inactivityPeriod,
+    ]);
+
+    await owner.sendTransaction({
+      to: vault.address,
+      value: 1n * 10n ** 18n,
+    });
+
+    await provider.send("evm_increaseTime", [
+      Number(inactivityPeriod),
+    ]);
+
+    await provider.send("evm_mine");
+
+    await vault.write.startWarningPeriod({
+      account: beneficiary.account,
+    });
+
+    await provider.send("evm_increaseTime", [
+      Number(warningDuration),
+    ]);
+
+    await provider.send("evm_mine");
+
+    const balanceBefore = BigInt(
+      await provider.request({
+        method: "eth_getBalance",
+        params: [beneficiary.account.address, "latest"],
+      })
+    );
+
+    await vault.write.claim({
+      account: beneficiary.account,
+    });
+
+    const balanceAfter = BigInt(
+      await provider.request({
+        method: "eth_getBalance",
+        params: [beneficiary.account.address, "latest"],
+      })
+    );
+
+    assert(balanceAfter > balanceBefore);
   });
 });
