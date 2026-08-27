@@ -17,9 +17,9 @@ contract ProofLegacyVault {
     uint256 public inactivityPeriod;
     uint256 public lastProofOfLife;
 
-   bool public warningPeriod;
-uint256 public warningStartedAt;
-bool public claimed;
+    bool public warningPeriod;
+    uint256 public warningStartedAt;
+    bool public claimed;
 
     uint256 public constant WARNING_PERIOD = 14 days;
 
@@ -42,6 +42,8 @@ bool public claimed;
     }
 
     function ping() external onlyOwner {
+        require(!claimed, "Already claimed");
+
         lastProofOfLife = block.timestamp;
         warningPeriod = false;
         warningStartedAt = 0;
@@ -51,10 +53,13 @@ bool public claimed;
         address _beneficiary
     ) external onlyOwner {
         require(_beneficiary != address(0), "Invalid beneficiary");
+        require(!claimed, "Already claimed");
+
         beneficiary = _beneficiary;
     }
 
     function startWarningPeriod() external {
+        require(!claimed, "Already claimed");
         require(!warningPeriod, "Warning already active");
         require(
             block.timestamp >= lastProofOfLife + inactivityPeriod,
@@ -65,9 +70,9 @@ bool public claimed;
         warningStartedAt = block.timestamp;
     }
 
-function claim() external {
-    require(!claimed, "Already claimed");
-    require(warningPeriod, "Warning not started");
+    function claim() external {
+        require(!claimed, "Already claimed");
+        require(warningPeriod, "Warning not started");
         require(
             block.timestamp >= warningStartedAt + WARNING_PERIOD,
             "Warning period active"
@@ -77,13 +82,14 @@ function claim() external {
             "Not beneficiary"
         );
 
-  claimed = true;
-warningPeriod = false;
+        claimed = true;
+        warningPeriod = false;
 
-      (bool success, ) = payable(beneficiary).call{
-    value: address(this).balance
-}("");
-require(success, "Transfer failed");
+        (bool success, ) = payable(beneficiary).call{
+            value: address(this).balance
+        }("");
+
+        require(success, "Transfer failed");
     }
 
     function getStatus()
@@ -94,6 +100,7 @@ require(success, "Transfer failed");
             address,
             uint256,
             uint256,
+            bool,
             bool
         )
     {
@@ -102,7 +109,8 @@ require(success, "Transfer failed");
             beneficiary,
             inactivityPeriod,
             lastProofOfLife,
-            warningPeriod
+            warningPeriod,
+            claimed
         );
     }
 
