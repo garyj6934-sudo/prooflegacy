@@ -7,6 +7,39 @@ describe("ProofLegacyVault", async function () {
   const { viem } = connection;
   const provider = connection.provider;
 
+  async function createClaimedVault() {
+    const [owner, beneficiary] = await viem.getWalletClients();
+
+    const inactivityPeriod = 90n * 24n * 60n * 60n;
+    const warningDuration = 14n * 24n * 60n * 60n;
+
+    const vault = await viem.deployContract("ProofLegacyVault", [
+      beneficiary.account.address,
+      inactivityPeriod,
+    ]);
+
+    await owner.sendTransaction({
+      to: vault.address,
+      value: 1n * 10n ** 18n,
+    });
+
+    await provider.send("evm_increaseTime", [Number(inactivityPeriod)]);
+    await provider.send("evm_mine");
+
+    await vault.write.startWarningPeriod({
+      account: beneficiary.account,
+    });
+
+    await provider.send("evm_increaseTime", [Number(warningDuration)]);
+    await provider.send("evm_mine");
+
+    await vault.write.claim({
+      account: beneficiary.account,
+    });
+
+    return { vault, owner, beneficiary };
+  }
+
   it("sets the owner and beneficiary correctly", async function () {
     const [owner, beneficiary] = await viem.getWalletClients();
     const inactivityPeriod = 90n * 24n * 60n * 60n;
@@ -28,7 +61,6 @@ describe("ProofLegacyVault", async function () {
   });
 
   it("rejects a zero address beneficiary", async function () {
-    const [owner] = await viem.getWalletClients();
     const zeroAddress = "0x0000000000000000000000000000000000000000";
     const inactivityPeriod = 90n * 24n * 60n * 60n;
 
@@ -230,39 +262,56 @@ describe("ProofLegacyVault", async function () {
   });
 
   it("does not allow the beneficiary to claim twice", async function () {
-    const [owner, beneficiary] = await viem.getWalletClients();
-    const inactivityPeriod = 90n * 24n * 60n * 60n;
-    const warningDuration = 14n * 24n * 60n * 60n;
-
-    const vault = await viem.deployContract("ProofLegacyVault", [
-      beneficiary.account.address,
-      inactivityPeriod,
-    ]);
-
-    await owner.sendTransaction({
-      to: vault.address,
-      value: 1n * 10n ** 18n,
-    });
-
-    await provider.send("evm_increaseTime", [Number(inactivityPeriod)]);
-    await provider.send("evm_mine");
-
-    await vault.write.startWarningPeriod({
-      account: beneficiary.account,
-    });
-
-    await provider.send("evm_increaseTime", [Number(warningDuration)]);
-    await provider.send("evm_mine");
-
-    await vault.write.claim({
-      account: beneficiary.account,
-    });
+    const { vault, beneficiary } = await createClaimedVault();
 
     await assert.rejects(
       vault.write.claim({
         account: beneficiary.account,
       })
     );
+  });
+
+  it("does not allow a claimed vault to be pinged", async function () {
+    const { vault, owner } = await createClaimedVault();
+
+    await assert.rejects(
+      vault.write.ping({
+        account: owner.account,
+      })
+    );
+  });
+
+  it("does not allow a claimed vault to update the beneficiary", async function () {
+    const [owner, beneficiary, newBeneficiary] =
+      await viem.getWalletClients();
+
+    const { vault } = await createClaimedVault();
+
+    await assert.rejects(
+      vault.write.updateBeneficiary(
+        [newBeneficiary.account.address],
+        {
+          account: owner.account,
+        }
+      )
+    );
+
+    assert.equal(
+      (await vault.read.beneficiary()).toLowerCase(),
+      beneficiary.account.address.toLowerCase()
+    );
+  });
+
+  it("does not allow a claimed vault to start a warning period", async function () {
+    const { vault, beneficiary } = await createClaimedVault();
+
+    await assert.rejects(
+      vault.write.startWarningPeriod({
+        account: beneficiary.account,
+      })
+    );
+
+    assert.equal(await vault.read.claimed(), true);
   });
 
   it("allows the owner to update the beneficiary", async function () {
