@@ -75,7 +75,10 @@ contract ProofLegacyVault {
             "Not beneficiary"
         );
 
-        payable(beneficiary).transfer(address(this).balance);
+        (bool success, ) = payable(beneficiary).call{
+    value: address(this).balance
+}("");
+require(success, "Transfer failed");
     }
 
     function getStatus()
